@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>HTML Desktop</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="desktop"></div>
+
+<div id="taskbar">
+    <div class="left">GoldenMoon-DE</div>
+    <div class="center">Desktop</div>
+    <div class="right" id="clock"></div>
+</div>
+
+<script>
+function updateClock() {
+    const now = new Date();
+    document.getElementById("clock").innerText =
+        now.toLocaleTimeString();
+}
+setInterval(updateClock, 1000);
+updateClock();
+</script>
+
+
+<!-- Anti copy of toolbar texts -->
+
+<script>
+taskbarItems.forEach(el => {
+    // Prevent selecting text by mouse drag
+    el.addEventListener('mousedown', e => e.preventDefault());
+    el.addEventListener('selectstart', e => e.preventDefault());
+    el.addEventListener('dragstart', e => e.preventDefault());
+
+    // Lock cursor
+    el.style.cursor = 'default';
+});
+
+// Optional: whole taskbar
+taskbar.addEventListener('mousedown', e => e.preventDefault());
+taskbar.addEventListener('selectstart', e => e.preventDefault());
+taskbar.style.cursor = 'default';
+
+</script>
+</body>
+</html>
