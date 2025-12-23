@@ -71,6 +71,23 @@ class DesktopShell(Gtk.Window):
             self.handle_launch_app(data.get("command"))
         elif action == "focus_app":
             self.handle_focus_app(data.get("command"))
+        # Inside your on_js_message method in desktop.py
+        elif action == "power_command":
+            cmd = data.get("command")
+            if cmd == "shutdown":
+                subprocess.Popen(["systemctl", "poweroff"])
+            elif cmd == "restart":
+                subprocess.Popen(["systemctl", "reboot"])
+            elif cmd == "sleep":
+                subprocess.Popen(["systemctl", "suspend"])
+        # Inside your on_js_message method in desktop.py
+        elif action == "get_power_icons":
+            icons = {
+                "shutdown": self.get_system_icon_path("system-shutdown"),
+                "restart": self.get_system_icon_path("system-reboot"),
+                "sleep": self.get_system_icon_path("system-suspend") # or "weather-night"
+            }
+            self.webview.run_javascript(f"receivePowerIcons({json.dumps(icons)})")
 
     def handle_get_dock_apps(self):
         """Reads dock.json and sends it to the frontend with resolved icons."""

@@ -18,7 +18,21 @@
 <!-- BOTTOM TASKBAR -->
 <div id="taskbar-bottom">
     <div class="taskbar-left">
-        <div class="start-btn">⊞</div>
+        <!-- startmenu -->
+        <div id="start-menu" class="hidden">
+    <div class="start-menu-content">
+        <div class="spacer"></div>
+    </div>
+    <div class="start-menu-footer">
+        <div class="power-buttons">
+            <button onclick="sendToPython({action: 'power_command', command: 'sleep'})" title="Sleep">ᶻ𝗓</button>
+            <button onclick="sendToPython({action: 'power_command', command: 'restart'})" title="Restart">↺</button>
+            <button onclick="sendToPython({action: 'power_command', command: 'shutdown'})" title="Shutdown" class="shutdown-btn">⏻</button>
+        </div>
+    </div>
+</div>
+
+<div class="start-btn" onclick="toggleStartMenu()">⊞</div>
     </div>
 
     <div class="taskbar-center">
@@ -99,7 +113,32 @@ function updateRunningIndicators(runningList) {
 function onLaunchResult(success, error) {
     if (!success) alert("Failed: " + error);
 }
+function toggleStartMenu() {
+    const menu = document.getElementById('start-menu');
+    menu.classList.toggle('hidden');
+}
 
+// Close start menu if clicking on the desktop (outside the menu)
+document.getElementById('desktop').addEventListener('click', () => {
+    document.getElementById('start-menu').classList.add('hidden');
+});
+
+// Prevent clicking inside the menu from closing it
+document.getElementById('start-menu').addEventListener('click', (e) => {
+    e.stopPropagation();
+});
+// Function to receive and set the icons
+function receivePowerIcons(icons) {
+    document.getElementById('btn-sleep').innerHTML = `<img src="${icons.sleep}" style="width:20px; height:20px;">`;
+    document.getElementById('btn-restart').innerHTML = `<img src="${icons.restart}" style="width:20px; height:20px;">`;
+    document.getElementById('btn-shutdown').innerHTML = `<img src="${icons.shutdown}" style="width:20px; height:20px;">`;
+}
+
+// Update your window.onload to request both dock apps AND power icons
+window.onload = () => {
+    sendToPython({ action: "get_dock_apps" });
+    sendToPython({ action: "get_power_icons" });
+};
 // Initial Request
 window.onload = () => sendToPython({ action: "get_dock_apps" });
 </script>
