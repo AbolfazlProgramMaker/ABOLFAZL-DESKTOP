@@ -1,6 +1,6 @@
-# Desktop Environment Project
+# Golden-Moon desktop
 
-> A private, experimental desktop environment project.
+> A desktop environment project with python!
 
 ## Overview
 
@@ -45,5 +45,5 @@ This software is provided **as-is**, without any warranty. Use at your own risk.
 
 ## Author
 
-**Golden Wings**
+**Golden Moon**
 2025
