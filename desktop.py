@@ -6,6 +6,7 @@ import subprocess
 
 gi.require_version("Gtk", "3.0")
 gi.require_version("WebKit2", "4.1")
+gi.require_version("Gdk", "3.0")
 gi.require_version("Wnck", "3.0")
 
 from gi.repository import Gtk, WebKit2, Gdk, Wnck, GLib
@@ -16,21 +17,17 @@ class DesktopShell(Gtk.Window):
         self.set_decorated(False)
         self.fullscreen()
 
-        # WebKit Settings for Local File Access and Security
         settings = WebKit2.Settings()
         settings.set_allow_universal_access_from_file_urls(True)
         settings.set_allow_file_access_from_file_urls(True)
 
-        # JS-Python Bridge Setup
         self.content_manager = WebKit2.UserContentManager()
         self.content_manager.register_script_message_handler("bridge")
         self.content_manager.connect("script-message-received::bridge", self.on_js_message)
 
-        # WebView Initialization
         self.webview = WebKit2.WebView.new_with_user_content_manager(self.content_manager)
         self.webview.set_settings(settings)
         
-        # Load local HTML
         current_dir = os.path.dirname(os.path.realpath(__file__))
         html_path = "file://" + os.path.join(current_dir, "desktop.html")
         self.webview.load_uri(html_path)
@@ -38,29 +35,22 @@ class DesktopShell(Gtk.Window):
         self.add(self.webview)
         self.connect("destroy", Gtk.main_quit)
 
-        # Initialize Wnck for Window Tracking
         self.screen = Wnck.Screen.get_default()
-        # Update running apps status every 2 seconds
         GLib.timeout_add_seconds(2, self.update_running_apps)
-
         self.show_all()
 
     def get_system_icon_path(self, icon_name):
-        """Resolves system icon names to absolute file:// paths."""
         icon_theme = Gtk.IconTheme.get_default()
         icon_info = icon_theme.lookup_icon(icon_name, 48, 0)
         return "file://" + icon_info.get_filename() if icon_info else ""
 
     def update_running_apps(self):
-        """Checks for open windows and tells JS which apps are running."""
         self.screen.force_update()
-        # Get list of WM_CLASS names of all open windows
         running_windows = [w.get_class_group_name().lower() for w in self.screen.get_windows()]
         self.webview.run_javascript(f"updateRunningIndicators({json.dumps(running_windows)})")
         return True
 
     def on_js_message(self, manager, result):
-        """Primary handler for JS bridge calls."""
         message = result.get_js_value().to_string()
         data = json.loads(message)
         action = data.get("action")
@@ -71,26 +61,74 @@ class DesktopShell(Gtk.Window):
             self.handle_launch_app(data.get("command"))
         elif action == "focus_app":
             self.handle_focus_app(data.get("command"))
-        # Inside your on_js_message method in desktop.py
         elif action == "power_command":
             cmd = data.get("command")
-            if cmd == "shutdown":
-                subprocess.Popen(["systemctl", "poweroff"])
-            elif cmd == "restart":
-                subprocess.Popen(["systemctl", "reboot"])
-            elif cmd == "sleep":
-                subprocess.Popen(["systemctl", "suspend"])
-        # Inside your on_js_message method in desktop.py
+            if cmd == "shutdown": subprocess.Popen(["systemctl", "poweroff"])
+            elif cmd == "restart": subprocess.Popen(["systemctl", "reboot"])
+            elif cmd == "sleep": subprocess.Popen(["systemctl", "suspend"])
         elif action == "get_power_icons":
             icons = {
                 "shutdown": self.get_system_icon_path("system-shutdown"),
                 "restart": self.get_system_icon_path("system-reboot"),
-                "sleep": self.get_system_icon_path("system-suspend") # or "weather-night"
+                "sleep": self.get_system_icon_path("system-suspend")
             }
             self.webview.run_javascript(f"receivePowerIcons({json.dumps(icons)})")
+        
+        # --- NEW BACKGROUND ACTIONS ---
+        elif action == "open_bg_picker":
+            self.handle_open_bg_picker()
+        elif action == "get_saved_background":
+            self.handle_get_saved_background()
+
+    def handle_open_bg_picker(self):
+        """Opens a native GTK file picker to select an image."""
+        dialog = Gtk.FileChooserDialog(
+            title="Select Wallpaper",
+            parent=self,
+            action=Gtk.FileChooserAction.OPEN,
+            buttons=(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_OPEN, Gtk.ResponseType.OK)
+        )
+        
+        # Filter for images only
+        filter_img = Gtk.FileFilter()
+        filter_img.set_name("Image files")
+        filter_img.add_mime_type("image/png")
+        filter_img.add_mime_type("image/jpeg")
+        filter_img.add_pattern("*.jpg")
+        filter_img.add_pattern("*.png")
+        dialog.add_filter(filter_img)
+
+        response = dialog.run()
+        if response == Gtk.ResponseType.OK:
+            file_path = dialog.get_filename()
+            # Save to JSON
+            with open("config.json", "w") as f:
+                json.dump({"wallpaper": file_path}, f)
+            # Update UI immediately
+            self.webview.run_javascript(f"applyBackground('file://{file_path}')")
+        
+        dialog.destroy()
+
+    def handle_get_saved_background(self):
+        """Reads config.json. If it doesn't exist, sends null to JS."""
+        saved_path = None
+        config_file = "config.json"
+        
+        if os.path.exists(config_file):
+            try:
+                with open(config_file, "r") as f:
+                    data = json.load(f)
+                    path = data.get("wallpaper")
+                    if path and os.path.exists(path):
+                        # Convert absolute path to file:// for WebKit
+                        saved_path = "file://" + path
+            except Exception as e:
+                print(f"Error reading config: {e}")
+        
+        # If saved_path is None, JS receiveSavedBackground will use wallpaper.png
+        self.webview.run_javascript(f"receiveSavedBackground({json.dumps(saved_path)})")
 
     def handle_get_dock_apps(self):
-        """Reads dock.json and sends it to the frontend with resolved icons."""
         try:
             with open("dock.json", "r") as f:
                 apps = json.load(f)
@@ -101,21 +139,15 @@ class DesktopShell(Gtk.Window):
             print(f"Error loading dock.json: {e}")
 
     def handle_launch_app(self, command):
-        """Executes the app command."""
         try:
             subprocess.Popen(command.split(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            self.webview.run_javascript("onLaunchResult(true, '')")
-        except Exception as e:
-            self.webview.run_javascript(f"onLaunchResult(false, '{str(e)}')")
+        except: pass
 
     def handle_focus_app(self, command):
-        """Brings an already running window to the front."""
         self.screen.force_update()
         target = command.lower()
         for window in self.screen.get_windows():
-            # Matches based on the window's group name (class)
             if target in window.get_class_group_name().lower():
-                # FIXED: Using Gdk.CURRENT_TIME instead of the non-existent get_current_time()
                 window.activate(Gdk.CURRENT_TIME)
                 break
 

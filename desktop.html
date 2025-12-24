@@ -1,52 +1,62 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>GoldenMoon-DE</title>
-<link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <title>GoldenMoon-DE</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Ensuring the body handles the background correctly */
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background-color: black;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            transition: background-image 0.5s ease-in-out; /* Smooth fade when changing */
+        }
+    </style>
 </head>
 <body>
 
 <div id="desktop"></div>
 
-<!-- TOP TASKBAR -->
 <div id="taskbar-top">
     <div id="top-text">GoldenMoon-DE</div>
     <div id="clock"></div>
 </div>
 
-<!-- BOTTOM TASKBAR -->
 <div id="taskbar-bottom">
     <div class="taskbar-left">
-        <!-- startmenu -->
         <div id="start-menu" class="hidden">
-    <div class="start-menu-content">
-        <div class="spacer"></div>
-    </div>
-    <div class="start-menu-footer">
-        <div class="power-buttons">
-            <button onclick="sendToPython({action: 'power_command', command: 'sleep'})" title="Sleep">ᶻ𝗓</button>
-            <button onclick="sendToPython({action: 'power_command', command: 'restart'})" title="Restart">↺</button>
-            <button onclick="sendToPython({action: 'power_command', command: 'shutdown'})" title="Shutdown" class="shutdown-btn">⏻</button>
+            <div class="start-menu-content">
+                <div class="spacer"></div>
+            </div>
+            <div class="start-menu-footer">
+                <div class="power-buttons">
+                    <button onclick="sendToPython({action: 'open_bg_picker'})" title="Set Background">🖼️</button>
+                    <button onclick="sendToPython({action: 'power_command', command: 'sleep'})" title="Sleep">ᶻ𝗓</button>
+                    <button onclick="sendToPython({action: 'power_command', command: 'restart'})" title="Restart">↺</button>
+                    <button onclick="sendToPython({action: 'power_command', command: 'shutdown'})" title="Shutdown" class="shutdown-btn">⏻</button>
+                </div>
+            </div>
         </div>
-    </div>
-</div>
-
-<div class="start-btn" onclick="toggleStartMenu()">⊞</div>
+        <div class="start-btn" onclick="toggleStartMenu()">⊞</div>
     </div>
 
-    <div class="taskbar-center">
-        <div class="app active">🌐</div>
-        <div class="app">📁</div>
-        <div class="app">⚙️</div>
-        <div class="app">🖥️</div>
-    </div>
+    <div class="taskbar-center" id="dock-container">
+        </div>
 
     <div class="taskbar-right"></div>
 </div>
 
 <script>
-// CLOCK FOR TOP TASKBAR (with seconds)
+/* --- UI UTILITIES --- */
+
 function updateClock() {
     const now = new Date();
     document.getElementById("clock").innerText =
@@ -55,46 +65,54 @@ function updateClock() {
 setInterval(updateClock, 1000);
 updateClock();
 
-// ANTI-COPY PROTECTION
-const allTaskbars = [document.getElementById('taskbar-top'), document.getElementById('taskbar-bottom')];
+function toggleStartMenu() {
+    document.getElementById('start-menu').classList.toggle('hidden');
+}
 
-allTaskbars.forEach(taskbar => {
-    const items = taskbar.querySelectorAll('*');
-    items.forEach(el => {
-        el.addEventListener('mousedown', e => e.preventDefault());
-        el.addEventListener('selectstart', e => e.preventDefault());
-        el.addEventListener('dragstart', e => e.preventDefault());
-        el.style.cursor = 'default';
-    });
-    taskbar.addEventListener('mousedown', e => e.preventDefault());
-    taskbar.addEventListener('selectstart', e => e.preventDefault());
-    taskbar.style.cursor = 'default';
+document.getElementById('desktop').addEventListener('click', () => {
+    document.getElementById('start-menu').classList.add('hidden');
 });
-// --- Communication Bridge ---
+
+document.getElementById('start-menu').addEventListener('click', (e) => e.stopPropagation());
+
+/* --- BACKGROUND MANAGEMENT --- */
+
+const DEFAULT_BG = "wallpaper.png";
+
+function applyBackground(path) {
+    // If path is null, empty, or undefined, use wallpaper.png
+    const finalPath = (path && path.trim() !== "") ? path : DEFAULT_BG;
+    console.log("Setting background to:", finalPath);
+    document.body.style.backgroundImage = `url('${finalPath}')`;
+}
+
+// Called by Python to send the saved string from config.json
+function receiveSavedBackground(savedPath) {
+    applyBackground(savedPath);
+}
+
+/* --- COMMUNICATION BRIDGE --- */
 
 let currentApps = [];
 
 function sendToPython(data) {
-    window.webkit.messageHandlers.bridge.postMessage(JSON.stringify(data));
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.bridge) {
+        window.webkit.messageHandlers.bridge.postMessage(JSON.stringify(data));
+    }
 }
 
 function receiveDockData(apps) {
     currentApps = apps;
-    const container = document.querySelector(".taskbar-center");
+    const container = document.getElementById("dock-container");
     container.innerHTML = "";
-
     apps.forEach(app => {
         const appEl = document.createElement("div");
         appEl.className = "app";
         appEl.id = `dock-${app.id}`;
         appEl.innerHTML = `<img src="${app.icon_path}" style="width:28px; height:28px;">`;
-        
         appEl.onclick = () => {
-            if (appEl.classList.contains("running")) {
-                sendToPython({ action: "focus_app", command: app.exec });
-            } else {
-                sendToPython({ action: "launch_app", command: app.exec });
-            }
+            const action = appEl.classList.contains("running") ? "focus_app" : "launch_app";
+            sendToPython({ action: action, command: app.exec });
         };
         container.appendChild(appEl);
     });
@@ -104,43 +122,28 @@ function updateRunningIndicators(runningList) {
     currentApps.forEach(app => {
         const el = document.getElementById(`dock-${app.id}`);
         if (!el) return;
-        // Simple match: if the exec name is in the window class list
         const isRunning = runningList.some(name => app.exec.toLowerCase().includes(name));
         el.classList.toggle("running", isRunning);
     });
 }
 
-function onLaunchResult(success, error) {
-    if (!success) alert("Failed: " + error);
-}
-function toggleStartMenu() {
-    const menu = document.getElementById('start-menu');
-    menu.classList.toggle('hidden');
-}
+/* --- INITIALIZATION --- */
 
-// Close start menu if clicking on the desktop (outside the menu)
-document.getElementById('desktop').addEventListener('click', () => {
-    document.getElementById('start-menu').classList.add('hidden');
-});
-
-// Prevent clicking inside the menu from closing it
-document.getElementById('start-menu').addEventListener('click', (e) => {
-    e.stopPropagation();
-});
-// Function to receive and set the icons
-function receivePowerIcons(icons) {
-    document.getElementById('btn-sleep').innerHTML = `<img src="${icons.sleep}" style="width:20px; height:20px;">`;
-    document.getElementById('btn-restart').innerHTML = `<img src="${icons.restart}" style="width:20px; height:20px;">`;
-    document.getElementById('btn-shutdown').innerHTML = `<img src="${icons.shutdown}" style="width:20px; height:20px;">`;
-}
-
-// Update your window.onload to request both dock apps AND power icons
 window.onload = () => {
+    // 1. Set immediate default background
+    applyBackground(DEFAULT_BG);
+    
+    // 2. Fetch system data from Python
     sendToPython({ action: "get_dock_apps" });
     sendToPython({ action: "get_power_icons" });
+    sendToPython({ action: "get_saved_background" });
 };
-// Initial Request
-window.onload = () => sendToPython({ action: "get_dock_apps" });
+
+// Protection against dragging/selection on taskbars
+[document.getElementById('taskbar-top'), document.getElementById('taskbar-bottom')].forEach(bar => {
+    bar.addEventListener('mousedown', e => e.preventDefault());
+    bar.addEventListener('selectstart', e => e.preventDefault());
+});
 </script>
 
 </body>
