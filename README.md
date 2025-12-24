@@ -48,4 +48,5 @@ This software is provided **as-is**, without any warranty. Use at your own risk.
 2025
 
 ##### Our Team:
-- AbolfazlGameMaker
+- Owner : AbolfazlGameMaker
+- Logo Maker : EREN RAPTOR GAME
