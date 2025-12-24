@@ -49,4 +49,3 @@ This software is provided **as-is**, without any warranty. Use at your own risk.
 
 ##### Our Team:
 - AbolfazlGameMaker
-- Radin6262
