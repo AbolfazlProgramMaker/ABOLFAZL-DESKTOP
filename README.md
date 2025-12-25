@@ -1,4 +1,4 @@
-# Golden-Moon desktop
+# Golden-Moon-Desktop
 
 > A desktop environment project with python!
 
