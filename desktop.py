@@ -3,6 +3,7 @@ import gi
 import json
 import os
 import subprocess
+import sys  # Added for Gdk arguments
 
 gi.require_version("Gtk", "3.0")
 gi.require_version("WebKit2", "4.1")
@@ -47,9 +48,11 @@ class DesktopShell(Gtk.Window):
 
         # Window Management via Wnck Signals (Event-driven)
         self.screen = Wnck.Screen.get_default()
-        self.screen.connect("window-opened", lambda s, w: self.update_running_apps())
-        self.screen.connect("window-closed", lambda s, w: self.update_running_apps())
-        self.screen.connect("active-window-changed", lambda s, w: self.update_running_apps())
+        
+        # Use idle_add to prevent reentrancy_guard errors (Wnck-CRITICAL fix)
+        self.screen.connect("window-opened", lambda s, w: GLib.idle_add(self.update_running_apps))
+        self.screen.connect("window-closed", lambda s, w: GLib.idle_add(self.update_running_apps))
+        self.screen.connect("active-window-changed", lambda s, w: GLib.idle_add(self.update_running_apps))
 
         self.show_all()
 
@@ -71,8 +74,10 @@ class DesktopShell(Gtk.Window):
         
         json_data = json.dumps(running_classes)
         js_code = f"if(window.updateRunningIndicators) updateRunningIndicators({json_data});"
-        self.webview.run_javascript(js_code)
-        return False # Required for GLib compatibility if called via idle_add
+        
+        # Updated method to fix DeprecationWarning
+        self.webview.run_javascript(js_code, None, None, None)
+        return False  # Required for GLib compatibility when called via idle_add
 
     def on_js_message(self, manager, result):
         try:
@@ -112,7 +117,7 @@ class DesktopShell(Gtk.Window):
             "restart": self.get_system_icon_path("view-refresh"),
             "sleep": self.get_system_icon_path("system-suspend")
         }
-        self.webview.run_javascript(f"if(window.receivePowerIcons) receivePowerIcons({json.dumps(icons)});")
+        self.webview.run_javascript(f"if(window.receivePowerIcons) receivePowerIcons({json.dumps(icons)});", None, None, None)
 
     def handle_open_bg_picker(self):
         dialog = Gtk.FileChooserDialog(
@@ -130,7 +135,7 @@ class DesktopShell(Gtk.Window):
             path = dialog.get_filename()
             with open(self.config_file, "w") as f:
                 json.dump({"wallpaper": path}, f)
-            self.webview.run_javascript(f"applyBackground('file://{path}')")
+            self.webview.run_javascript(f"applyBackground('file://{path}')", None, None, None)
         dialog.destroy()
 
     def handle_get_saved_background(self):
@@ -140,7 +145,7 @@ class DesktopShell(Gtk.Window):
                 with open(self.config_file, "r") as f:
                     bg_path = "file://" + json.load(f).get("wallpaper")
             except: pass
-        self.webview.run_javascript(f"receiveSavedBackground({json.dumps(bg_path)});")
+        self.webview.run_javascript(f"receiveSavedBackground({json.dumps(bg_path)});", None, None, None)
 
     def handle_get_dock_apps(self):
         if os.path.exists(self.dock_file):
@@ -148,7 +153,7 @@ class DesktopShell(Gtk.Window):
                 apps = json.load(f)
                 for app in apps:
                     app['icon_path'] = self.get_system_icon_path(app.get('icon'))
-                self.webview.run_javascript(f"receiveDockData({json.dumps(apps)});")
+                self.webview.run_javascript(f"receiveDockData({json.dumps(apps)});", None, None, None)
 
     def handle_launch_app(self, cmd):
         if cmd:
@@ -163,7 +168,8 @@ class DesktopShell(Gtk.Window):
                 break
 
 if __name__ == "__main__":
-    Gdk.init(None)
+    # Passing sys.argv instead of None to fix TypeError
+    Gdk.init(sys.argv)
     DesktopShell()
     Gtk.main()
     
