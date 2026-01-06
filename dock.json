@@ -1,5 +1,5 @@
 [
-    {"id": "brave", "name": "Web Browser", "icon": "brave", "exec": "brave-browser"},
-    {"id": "files", "name": "Files", "icon": "system-file-manager", "exec": "nautilus"},
-    {"id": "terminal", "name": "Terminal", "icon": "utilities-terminal", "exec": "gnome-terminal"}
+    {"id": "brave", "name": "Brave Browser", "icon": "brave", "exec": "brave-browser", "FilePathBased": false},
+    {"id": "files", "name": "Files", "icon": "system-file-manager", "exec": "nautilus", "FilePathBased": false},
+    {"id": "terminal", "name": "Terminal", "icon": "utilities-terminal", "exec": "gnome-terminal", "FilePathBased": false}
 ]
